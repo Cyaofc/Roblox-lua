@@ -1,8 +1,11 @@
+-- Full Roblox GUI Script with Abilities
+-- Place this LocalScript in StarterPlayerScripts or StarterGui as a LocalScript
+-- NOTE: Test and adjust values in Studio. Some functions (like SetCoreGuiEnabled) might be restricted in live games.
+
 -- // Services & player refs
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
-local Debris = game:GetService("Debris")
 local player = Players.LocalPlayer
 
 -- // Basic GUI setup
@@ -13,7 +16,7 @@ ScreenGui.IgnoreGuiInset = true
 ScreenGui.DisplayOrder = 999999999
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 300, 0, 400)
+Frame.Size = UDim2.new(0, 300, 0, 350)
 Frame.Position = UDim2.new(0.25, 0, 0.25, 0)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 Frame.Active = true
@@ -67,19 +70,16 @@ local function MakeBtn(name)
     return b
 end
 
--- Buttons list (FOV, Noclip y God removidos)
+-- Buttons list
 local SpeedBtn = MakeBtn("Velocidad")
 local JumpBtn  = MakeBtn("Salto")
 local InvisBtn = MakeBtn("Invisibilidad")
 local StrongBtn = MakeBtn("Super Fuerza")
 local DashBtn = MakeBtn("Dash")
 local FlyBtn = MakeBtn("Fly")
-local -- FOVBtn removed
-    nil
-local -- GodBtn removed
-    nil
-local -- NoclipBtn removed
-    nil
+local FOVBtn = MakeBtn("FOV Boost")
+local GodBtn = MakeBtn("God Mode")
+local NoclipBtn = MakeBtn("Noclip")
 local GravityBtn = MakeBtn("Gravedad Baja")
 local ScaleBtn = MakeBtn("Escala")
 local CamFreeBtn = MakeBtn("Camara Libre")
@@ -90,15 +90,14 @@ local SlowBtn = MakeBtn("Slow Motion")
 local ChargeJumpBtn = MakeBtn("Salto Cargado")
 local SpeedUpBtn = MakeBtn("Velocidad Progresiva")
 local DoubleJumpBtn = MakeBtn("Doble Salto")
-local AimbotBtn = MakeBtn("Aimbot (Toggle)")
 
 -- Helper functions for character/humanoid
 local function Char()
     return player.Character or player.CharacterAdded:Wait()
 end
 local function Hum()
-    local c = player.Character
-    return c and c:FindFirstChildOfClass("Humanoid")
+    local c = Char()
+    return c:FindFirstChildOfClass("Humanoid")
 end
 
 -- Abilities implementation (simple and local)
@@ -123,6 +122,7 @@ end)
 StrongBtn.MouseButton1Click:Connect(function()
     local h = Hum()
     if h then
+        -- example: increase hip height as a placeholder for 'strength' visual change
         pcall(function() h.HipHeight = (h.HipHeight or 2) + 2 end)
     end
 end)
@@ -142,21 +142,46 @@ FlyBtn.MouseButton1Click:Connect(function()
 end)
 RunService.RenderStepped:Connect(function()
     if flying then
-        local c = player.Character
-        if c then
-            local root = c:FindFirstChild("HumanoidRootPart")
-            if root then
-                root.Velocity = Vector3.new(root.Velocity.X, 3, root.Velocity.Z)
-            end
+        local c = Char()
+        local root = c:FindFirstChild("HumanoidRootPart")
+        if root then
+            -- small upward motion while flying; in studio you may want to implement proper controls
+            root.Velocity = Vector3.new(root.Velocity.X, 3, root.Velocity.Z)
         end
     end
 end)
 
--- FOV removed (no FOV button / functionality)
+FOVBtn.MouseButton1Click:Connect(function()
+    local cam = workspace.CurrentCamera
+    if cam then cam.FieldOfView = 100 end
+end)
 
--- God mode removed (no persistent health-lock)
+GodBtn.MouseButton1Click:Connect(function()
+    local h = Hum()
+    if h then
+        -- Keep health high while the script runs; note: serverside damage can still override in some games
+        h.Health = h.MaxHealth
+        h:GetPropertyChangedSignal("Health"):Connect(function()
+            if h.Health < h.MaxHealth then
+                h.Health = h.MaxHealth
+            end
+        end)
+    end
+end)
 
--- Noclip removed (no collision changes)
+-- Noclip implementation
+local noclip = false
+NoclipBtn.MouseButton1Click:Connect(function()
+    noclip = not noclip
+end)
+RunService.Stepped:Connect(function()
+    if noclip then
+        local c = Char()
+        for _,v in pairs(c:GetDescendants()) do
+            if v:IsA("BasePart") then v.CanCollide = false end
+        end
+    end
+end)
 
 GravityBtn.MouseButton1Click:Connect(function()
     workspace.Gravity = 40 -- lower gravity
@@ -192,7 +217,7 @@ ProjectileBtn.MouseButton1Click:Connect(function()
         p.Velocity = workspace.CurrentCamera.CFrame.LookVector * 200
         p.CanCollide = false
         p.BrickColor = BrickColor.new("Bright red")
-        Debris:AddItem(p, 5)
+        game:GetService("Debris"):AddItem(p, 5)
     end
 end)
 
@@ -206,6 +231,7 @@ ExplosionBtn.MouseButton1Click:Connect(function()
 end)
 
 SlowBtn.MouseButton1Click:Connect(function()
+    -- simple slow: reduce WalkSpeed temporarily
     local h = Hum()
     if h then
         local old = h.WalkSpeed
@@ -242,9 +268,8 @@ end)
 
 do
     local jumped = false
-    -- Reconnect humanoid when character changes
-    local function setupDouble(h)
-        if not h then return end
+    local h = Hum()
+    if h then
         h.StateChanged:Connect(function(old, new)
             if new == Enum.HumanoidStateType.Freefall and doubleEnabled then
                 if not jumped then
@@ -257,104 +282,9 @@ do
             end
         end)
     end
-
-    -- initial
-    local h0 = Hum()
-    setupDouble(h0)
-    -- re-setup on character added
-    player.CharacterAdded:Connect(function()
-        task.wait(1)
-        setupDouble(Hum())
-    end)
 end
 
--- Aimbot implementation (local, basic, smooth)
-local aimbotEnabled = false
-local aimbotFOV = 30 -- degrees: cone to search for targets (adjust)
-local aimbotMaxDist = 200 -- studs
-local aimbotSmoothing = 0.18 -- lerp factor (0 = instant, 1 = no movement) -> smaller = faster snap
-
-local function isValidTarget(plr)
-    if not plr or plr == player then return false end
-    if not plr.Character then return false end
-    local head = plr.Character:FindFirstChild("Head")
-    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-    if not head or not hum or hum.Health <= 0 then return false end
-    return true
-end
-
-local function getClosestTarget()
-    local cam = workspace.CurrentCamera
-    if not cam then return nil end
-    local camPos = cam.CFrame.Position
-    local best = nil
-    local bestScore = math.huge
-
-    for _,plr in pairs(Players:GetPlayers()) do
-        if isValidTarget(plr) then
-            local head = plr.Character:FindFirstChild("Head")
-            local toTarget = head.Position - camPos
-            local dist = toTarget.Magnitude
-            if dist <= aimbotMaxDist then
-                -- angle between look vector and target
-                local forward = cam.CFrame.LookVector
-                local angle = math.deg(math.acos(math.clamp(forward:Dot(toTarget.Unit), -1, 1)))
-                if angle <= aimbotFOV then
-                    -- optional: check visibility with raycast
-                    local rayParams = RaycastParams.new()
-                    rayParams.FilterDescendantsInstances = {player.Character}
-                    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-                    local ray = workspace:Raycast(camPos, toTarget, rayParams)
-                    local visible = true
-                    if ray then
-                        -- if ray hit something that is not the target's head, consider occluded
-                        if ray.Instance and not ray.Instance:IsDescendantOf(plr.Character) then
-                            visible = false
-                        end
-                    end
-                    if visible then
-                        -- score by distance then angle
-                        local score = dist + angle * 2
-                        if score < bestScore then
-                            bestScore = score
-                            best = head
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    return best
-end
-
--- Toggle button
-AimbotBtn.MouseButton1Click:Connect(function()
-    aimbotEnabled = not aimbotEnabled
-    AimbotBtn.BackgroundColor3 = aimbotEnabled and Color3.fromRGB(80,160,80) or Color3.fromRGB(50,50,50)
-    AimbotBtn.Text = aimbotEnabled and "Aimbot: ON" or "Aimbot (Toggle)"
-end)
-
--- Smooth aiming each frame when enabled
-RunService.RenderStepped:Connect(function(delta)
-    if not aimbotEnabled then return end
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-    local targetHead = getClosestTarget()
-    if targetHead then
-        -- desired CFrame looking at target
-        local camPos = cam.CFrame.Position
-        local desiredCF = CFrame.new(camPos, targetHead.Position)
-        -- smooth between current and desired
-        local current = cam.CFrame
-        -- Lerp rotation only to avoid moving camera position
-        local newCF = CFrame.new(current.Position, current.Position + (current.LookVector:Lerp((desiredCF.LookVector), math.clamp(1 - aimbotSmoothing, 0, 1))))
-        -- apply camera CFrame (Scriptable camera may be required in some games)
-        pcall(function()
-            cam.CFrame = newCF
-        end)
-    end
-end)
+-- Dash visual / speed restore helper could be added as needed (this is simple and instantaneous)
 
 -- Minimize / Orb logic
 MinBtn.MouseButton1Click:Connect(function()
