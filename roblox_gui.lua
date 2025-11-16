@@ -1,7 +1,3 @@
--- Full Roblox GUI Script with Abilities
--- Place this LocalScript in StarterPlayerScripts or StarterGui as a LocalScript
--- NOTE: Test and adjust values in Studio. Some functions (like SetCoreGuiEnabled) might be restricted in live games.
-
 -- // Services & player refs
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -78,8 +74,6 @@ local StrongBtn = MakeBtn("Super Fuerza")
 local DashBtn = MakeBtn("Dash")
 local FlyBtn = MakeBtn("Fly")
 local FOVBtn = MakeBtn("FOV Boost")
-local GodBtn = MakeBtn("God Mode")
-local NoclipBtn = MakeBtn("Noclip")
 local GravityBtn = MakeBtn("Gravedad Baja")
 local ScaleBtn = MakeBtn("Escala")
 local CamFreeBtn = MakeBtn("Camara Libre")
