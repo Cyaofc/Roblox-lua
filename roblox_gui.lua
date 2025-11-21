@@ -158,7 +158,7 @@ end)
 -- Botón: Salto
 local jumpBtn = newButton("Salto Alto", 50)
 jumpBtn.MouseButton1Click:Connect(function()
-	lp.Character.Humanoid.JumpPower = 150
+	lp.Character.Humanoid.JumpPower = 200
 end)
 
 -- Botón: Super Fuerza (extra)
